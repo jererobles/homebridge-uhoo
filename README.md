@@ -12,11 +12,15 @@ Report sensor data from uHoo air quality monitor to HomeKit.
 
 ```json
 {
-    "accessory": "uHooAirQuality",
-    "name": "Living Room Air Quality",
-    "username": "YOUR_EMAIL",
-    "password": "YOUR_PASSWORD",
-    "clientId": "5059660210617291758|7900188431095154449"
+  "accessories": [
+    {
+      "accessory": "uHooAirQuality",
+      "name": "Living Room Air Quality",
+      "username": "YOUR_EMAIL",
+      "password": "YOUR_PASSWORD",
+      "clientId": "5059660210617291758|7900188431095154449"
+    }
+  ]
 }
 ```
 Note: `clientId` might be user-specific, you can get this by sniffing your network traffic.
