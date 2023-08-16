@@ -31,6 +31,7 @@ module.exports = function (homebridge) {
     this.clientId = config.clientId; // Client ID should be provided in the config
 
     this.token = null; // Token for uHoo API
+    this.data = null;
   }
 
   uHooAirQuality.prototype = {
@@ -61,6 +62,7 @@ module.exports = function (homebridge) {
             headers,
             form
           }, (error, response, body) => {
+            this.log('Login successful');
             const authToken = JSON.parse(body).refreshToken; // Parse token from response
             this.token = authToken; // Store token for future use
             callback(null, authToken);
@@ -71,6 +73,10 @@ module.exports = function (homebridge) {
 
     getAirQuality: function (callback) {
       this.log('do getAirQuality');
+      const firstTime = !this.data;
+      if (firstTime) {
+        callback(null, Characteristic.AirQuality.UNKNOWN);
+      }
       this.authenticate((error, authToken) => {
         if (error) {
           callback(error);
@@ -78,7 +84,6 @@ module.exports = function (homebridge) {
         }
 
         // URL for getting air quality data
-        this.log(`Login successful`)
         const url = 'https://api.uhooinc.com/v1/allconsumerdata';
 
         request.get({
@@ -91,51 +96,48 @@ module.exports = function (homebridge) {
           if (error) {
             // Revoke token if there was an error
             this.token = null;
-            this.log('Error fetching air quality:', error);
             callback(error);
           } else {
+            this.log('API response OK');
             // Parse the response and extract the CO2 value
-            const data = JSON.parse(body).devices[0].data;
-
-            // Map the CO2 value to HomeKit's air quality characteristic
-            const homeKitAirQuality = mapUHooToHomeKitAirQuality(data.co2.value);
-            this.serviceAirQuality.setCharacteristic(Characteristic.AirQuality, homeKitAirQuality);
-            // Map CO, CO2, NO2, O3, TVOC, Dust(PM2.5) values to HomeKit's corresponding characteristics
-            // TODO: check if unit conversion is needed
-            this.serviceAirQuality.setCharacteristic(Characteristic.NitrogenDioxideDensity, data.no2.value);
-            this.serviceAirQuality.setCharacteristic(Characteristic.OzoneDensity, data.ozone.value);
-            this.serviceAirQuality.setCharacteristic(Characteristic.VOCDensity, data.voc.value);
-            this.serviceAirQuality.setCharacteristic(Characteristic.PM2_5Density, data.dust.value);
-            // Map Temperature, Humidity values to HomeKit's corresponding services/characteristics
-            this.serviceCO.setCharacteristic(Characteristic.CarbonMonoxideLevel, data.co.value);
-            this.serviceCO.setCharacteristic(Characteristic.CarbonMonoxideDetected, data.co.value > 0 ? 1 : 0);
-            this.serviceCO2.setCharacteristic(Characteristic.CarbonDioxideLevel, data.co2.value);
-            this.serviceCO2.setCharacteristic(Characteristic.CarbonDioxideDetected, data.co2.value > 1000 ? 1 : 0);
-            this.serviceTemp.setCharacteristic(Characteristic.CurrentTemperature, data.temp.value);
-            this.serviceHumidity.setCharacteristic(Characteristic.CurrentRelativeHumidity, data.humidity.value);
-
-            callback(null, homeKitAirQuality);
+            this.data = JSON.parse(body).devices[0].data;
+            if (!firstTime) {
+              this.refreshValuesFromStore(callback);
+            }
           }
         });
       });
+    },
+
+    refreshValuesFromStore: function (callback) {
+      try {
+        // Map the CO2 value to HomeKit's air quality characteristic
+        const homeKitAirQuality = mapUHooToHomeKitAirQuality(this.data.co2.value);
+        this.serviceAirQuality.getCharacteristic(Characteristic.AirQuality).updateValue(homeKitAirQuality);
+        // Map CO, CO2, NO2, O3, TVOC, Dust(PM2.5) values to HomeKit's corresponding characteristics
+        // TODO: check if unit conversion is needed
+        this.serviceAirQuality.getCharacteristic(Characteristic.NitrogenDioxideDensity).updateValue(this.data.no2.value);
+        this.serviceAirQuality.getCharacteristic(Characteristic.OzoneDensity).updateValue(this.data.ozone.value);
+        this.serviceAirQuality.getCharacteristic(Characteristic.VOCDensity).updateValue(this.data.voc.value);
+        this.serviceAirQuality.getCharacteristic(Characteristic.PM2_5Density).updateValue(this.data.dust.value);
+        // Map Temperature, Humidity values to HomeKit's corresponding services/characteristics
+        this.serviceCO.getCharacteristic(Characteristic.CarbonMonoxideLevel).updateValue(this.data.co.value);
+        this.serviceCO.getCharacteristic(Characteristic.CarbonMonoxideDetected).updateValue(this.data.co.value > 0 ? 1 : 0);
+        this.serviceCO2.getCharacteristic(Characteristic.CarbonDioxideLevel).updateValue(this.data.co2.value);
+        this.serviceCO2.getCharacteristic(Characteristic.CarbonDioxideDetected).updateValue(this.data.co2.value > 1000 ? 1 : 0);
+        this.serviceTemp.getCharacteristic(Characteristic.CurrentTemperature).updateValue(this.data.temp.value);
+        this.serviceHumidity.getCharacteristic(Characteristic.CurrentRelativeHumidity).updateValue(this.data.humidity.value);
+
+        callback(null, homeKitAirQuality);
+      } catch (error) {
+        callback(error);
+      }
     },
 
     getServices: function () {
       this.serviceAirQuality
         .getCharacteristic(Characteristic.AirQuality)
         .on('get', this.getAirQuality.bind(this));
-      // this.serviceCO
-      //   .getCharacteristic(Characteristic.CarbonMonoxideLevel)
-      //   .on('get', this.getAirQuality.bind(this));
-      // this.serviceCO2
-      //   .getCharacteristic(Characteristic.CarbonDioxideLevel)
-      //   .on('get', this.getAirQuality.bind(this));
-      // this.serviceTemp
-      //   .getCharacteristic(Characteristic.CurrentTemperature)
-      //   .on('get', this.getAirQuality.bind(this));
-      // this.serviceHumidity
-      //   .getCharacteristic(Characteristic.CurrentRelativeHumidity)
-      //   .on('get', this.getAirQuality.bind(this));
 
       return [
         this.serviceAirQuality,
