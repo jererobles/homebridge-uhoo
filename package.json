@@ -1,0 +1,32 @@
+{
+  "name": "homebridge-uhoo",
+  "version": "1.0.1",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "jereees@gmail.com",
+  "license": "MIT",
+  "dependencies": {
+    "crypto-js": "^4.1.1",
+    "request": "^2.88.2"
+  },
+  "keywords": [
+    "homebridge-plugin",
+    "uhoo",
+    "air quality"
+  ],
+  "engines": {
+    "node": ">=14.0.0",
+    "homebridge": ">=1.3.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jererobles/homebridge-uhoo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jererobles/homebridge-uhoo/issues"
+  },
+  "homepage": "https://github.com/jererobles/homebridge-uhoo#readme"
+}
