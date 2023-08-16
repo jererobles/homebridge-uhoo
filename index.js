@@ -72,10 +72,7 @@ module.exports = function (homebridge) {
     },
 
     getAirQuality: function (callback) {
-      const firstTime = !this.data;
-      if (firstTime) {
-        callback(null, Characteristic.AirQuality.UNKNOWN);
-      }
+      this.refreshValuesFromStore(callback); // use cached values immediately
       this.authenticate((error, authToken) => {
         if (error) {
           callback(error);
@@ -100,7 +97,7 @@ module.exports = function (homebridge) {
             // Parse the response and extract the CO2 value
             try {
               this.data = JSON.parse(body).devices[0].data;
-              this.refreshValuesFromStore(firstTime ? undefined : callback);
+              this.refreshValuesFromStore();
               this.errorCount = 0;
             } catch (error) {
               this.errorCount++;
@@ -119,6 +116,10 @@ module.exports = function (homebridge) {
 
     refreshValuesFromStore: function (callback) {
       try {
+        if (!this.data && callback) {
+          callback(null, Characteristic.AirQuality.UNKNOWN);
+          return;
+        }
         // Map the CO2 value to HomeKit's air quality characteristic
         const homeKitAirQuality = mapUHooToHomeKitAirQuality(this.data.co2.value);
         this.serviceAirQuality.getCharacteristic(Characteristic.AirQuality).updateValue(homeKitAirQuality);
