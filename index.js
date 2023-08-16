@@ -32,6 +32,7 @@ module.exports = function (homebridge) {
 
     this.token = null; // Token for uHoo API
     this.data = null;
+    this.errorCount = 0;
   }
 
   uHooAirQuality.prototype = {
@@ -40,7 +41,6 @@ module.exports = function (homebridge) {
         callback(null, this.token);
         return;
       }
-      this.log('do authenticate');
       // Step 1: Get UID
       request.get('https://api.uhooinc.com/v1/user', (error, response, body) => {
         const uid = JSON.parse(body).uId; // Parse UID from response
@@ -72,7 +72,6 @@ module.exports = function (homebridge) {
     },
 
     getAirQuality: function (callback) {
-      this.log('do getAirQuality');
       const firstTime = !this.data;
       if (firstTime) {
         callback(null, Characteristic.AirQuality.UNKNOWN);
@@ -98,11 +97,20 @@ module.exports = function (homebridge) {
             this.token = null;
             callback(error);
           } else {
-            this.log('API response OK');
             // Parse the response and extract the CO2 value
-            this.data = JSON.parse(body).devices[0].data;
-            if (!firstTime) {
-              this.refreshValuesFromStore(callback);
+            try {
+              this.data = JSON.parse(body).devices[0].data;
+              this.refreshValuesFromStore(firstTime ? undefined : callback);
+              this.errorCount = 0;
+            } catch (error) {
+              this.errorCount++;
+              if (this.errorCount > 3) {
+                this.errorCount = 0;
+                callback(error);
+              } else {
+                this.token = null; // session likely expired
+                this.refreshValuesFromStore(callback); // use cached values
+              }
             }
           }
         });
@@ -128,9 +136,9 @@ module.exports = function (homebridge) {
         this.serviceTemp.getCharacteristic(Characteristic.CurrentTemperature).updateValue(this.data.temp.value);
         this.serviceHumidity.getCharacteristic(Characteristic.CurrentRelativeHumidity).updateValue(this.data.humidity.value);
 
-        callback(null, homeKitAirQuality);
+        if (callback) callback(null, homeKitAirQuality);
       } catch (error) {
-        callback(error);
+        if (callback) callback(error);
       }
     },
 
